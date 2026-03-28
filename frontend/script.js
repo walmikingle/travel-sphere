@@ -1,28 +1,17 @@
-console.log("Travel Sphere Loaded");
-
-
-
-
-const destinations = [
-    {
-        name: "Shanivar Wada",
-        location: "Central Pune",
-        entry_fees: "25 Rupees",
-        rating: "4.5",
-        image: "https://www.adotrip.com/public/images/areas/master_images/5c6a5fb858f94-Shaniwar_Wada_Attractions.jpg"
-    },
-    {
-        name: "Sinhagad Fort",
-        location: "30km SW",
-        entry_fees: "Free",
-        rating: "4.8",
-        image: "https://punetourism.co.in/images/places-to-visit/headers/sinhagad-fort-pune-tourism-entry-fee-timings-holidays-reviews-header.jpg"
+let allDestinations = [];
+async function loadDestinations() {
+    try{
+        const response = await fetch("http://127.0.0.1:3000/destinations");
+        const data = await response.json();
+        allDestinations = data;
+        renderCards(data);
+    }catch(error) {
+        console.log("Error Fetching the Content");
     }
-];
+    
+}
 
-
-
-
+console.log("Travel Sphere Loaded");
 const container = document.getElementById("destinationContainer");
 
 // 🔥 FUNCTION to render cards
@@ -51,7 +40,7 @@ function renderCards(data) {
 }
 
 // ✅ Initial render
-renderCards(destinations);
+loadDestinations();
 
 // 🔍 SEARCH FUNCTIONALITY
 const searchInput = document.getElementById("searchInput");
@@ -59,81 +48,100 @@ const searchInput = document.getElementById("searchInput");
 searchInput.addEventListener("input", function() {
     const value = searchInput.value.toLowerCase();
 
-    const filtered = destinations.filter(function(place) {
+    const filtered = allDestinations.filter(function(place) {
         return place.name.toLowerCase().includes(value);
     });
 
     renderCards(filtered);
 });
 
-let itinerary = JSON.parse(localStorage.getItem("itinerary")) || [];
+
 
 // ✅ Initial render
-renderCards(destinations);
-renderItinerary();
 
+loadItinerary();
 // ✅ Add to itinerary
-container.addEventListener("click", function(event) {
+container.addEventListener("click", async function(event) {
     if (event.target.classList.contains("add-btn")) {
-
+           console.log("BUTTON CLICKED");
         const card = event.target.closest(".destination-card");
-        const name = card.querySelector("h3").textContent;
 
-        if (!itinerary.includes(name)) {
-            itinerary.push(name);
+const spans = card.querySelectorAll(".card-meta span");
 
-            localStorage.setItem("itinerary", JSON.stringify(itinerary));
+const place = {
+    name: card.querySelector("h3").textContent,
+    location: card.querySelector("p").textContent,
+    entry_fees: spans[0]?.textContent || "N/A",
+    rating: spans[1]?.textContent || "N/A",
+    image: card.querySelector("img").src
+};
+     
 
-            renderItinerary();
-        } else {
-            alert(name + " already added");
-        }
+ const res = await fetch("http://127.0.0.1:3000/itinerary", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify(place)
+});
+console.log("Response status:", res.status);
+loadItinerary();
     }
 });
 
+
+
+// Load Ititnerary
+async function loadItinerary() {
+    const response = await fetch("http://127.0.0.1:3000/itinerary");
+    const data = await response.json();
+
+    renderItinerary(data);
+}
 // ✅ Render itinerary
-function renderItinerary() {
+function renderItinerary(data) {
     const list = document.getElementById("itineraryList");
-    const count = document.getElementById("count");
-    const emptyMsg = document.getElementById("emptyMsg");
     list.innerHTML = "";
-    count.textContent = itinerary.length;
-    if(itinerary.length === 0) {
-        emptyMsg.style.display = "block";
-    }
-    else {
-        emptyMsg.style.display = "none";
-    }
-    itinerary.forEach(function(place) {
-        const li = `
-            <li>
-                ${place}
-                <button class="remove-btn">Remove</button>
-            </li>
-        `;
-        list.innerHTML += li;
+
+    if (!data) return; // 👈 prevents crash
+
+    data.forEach(function(place) {
+       const li = `
+    <li>
+        <strong>${place.name}</strong> - ${place.location}
+        <button class="remove-btn">Remove</button>
+    </li>
+`;
+  list.innerHTML += li;
     });
 }
-
 // ✅ Remove item
-document.getElementById("itineraryList").addEventListener("click", function(event) {
+document.getElementById("itineraryList").addEventListener("click", async function(event) {
     if (event.target.classList.contains("remove-btn")) {
 
         const item = event.target.parentElement;
-        const name = item.firstChild.textContent.trim();
+        const name = item.firstChild.textContent.trim(); // ✅ FIXED
 
-        itinerary = itinerary.filter(function(place) {
-            return place !== name;
+        await fetch("http://127.0.0.1:3000/itinerary", {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ name: name })
         });
 
-        localStorage.setItem("itinerary", JSON.stringify(itinerary));
-
-        renderItinerary();
+        loadItinerary();
     }
 });
+document.getElementById("Clear-btn").addEventListener("click", async function() {
 
-document.getElementById("Clear-btn").addEventListener("click",function(){
-    itinerary = [];
-    localStorage.setItem("itinerary" ,JSON.stringify(itinerary));
-    renderItinerary();
+    await fetch("http://127.0.0.1:3000/itinerary", {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name: "ALL" }) // we'll handle this
+    });
+
+    loadItinerary();
 });
